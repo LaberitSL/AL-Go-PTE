@@ -1,0 +1,90 @@
+name: ' Publish To OnPremise Environment'
+
+on:
+  workflow_dispatch:
+    inputs:
+      appVersion:
+        description: App version to deploy to environment(s) (current, prerelease, draft, latest or version number)
+        required: false
+        default: 'current'
+      deploymentType:
+        description: Type of the target of deployment (LocalContainer or OnPrem)
+        required: true
+        default: OnPrem
+      environmentName:
+        description: Environment (container or service) name to receive the new version
+        required: true
+      tenant:
+        description: Tenant to deploy to
+        required: false
+        default: 'default'
+      syncMode:
+        description: Schema synchronization mode (Add, Clean, Development or ForceSync)
+        required: false
+        default: 'Add'
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: PowerShell
+
+jobs:
+  Initialization:
+    runs-on: [ windows-latest ]
+    outputs:
+      telemetryScopeJson: ${{ steps.init.outputs.telemetryScopeJson }}
+      settings: ${{ steps.ReadSettings.outputs.SettingsJson }}
+      environments: ${{ steps.ReadSettings.outputs.EnvironmentsJson }}
+      environmentCount: ${{ steps.ReadSettings.outputs.EnvironmentCount }}
+      githubRunner: ${{ steps.ReadSettings.outputs.GitHubRunnerJson }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Initialize the workflow
+        id: init
+        uses: microsoft/AL-Go-Actions/WorkflowInitialize@v2.2
+        with:
+          eventId: "DO0097"
+          
+      - name: Read settings
+        id: ReadSettings
+        uses: microsoft/AL-Go-Actions/ReadSettings@v2.2
+
+  Deploy:
+    needs: [ Initialization ]
+    runs-on: ${{ fromJson(needs.Initialization.outputs.githubRunner) }}
+    name: Deploy to ${{ github.event.inputs.environmentName }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Read settings
+        uses: microsoft/AL-Go-Actions/ReadSettings@v2.2
+
+      - name: Deploy
+        uses: LaberitSL/AL-Go-Actions/DeployOnPrem@v2.2
+        with:
+          deploymentType: ${{ github.event.inputs.deploymentType }}
+          environmentName: ${{ github.event.inputs.environmentName }}
+          artifacts: ${{ github.event.inputs.appVersion }}
+          tenant: ${{ github.event.inputs.tenant }}
+          syncMode: ${{ github.event.inputs.syncMode }}
+
+  PostProcess:
+    if: always()
+    runs-on: [ windows-latest ]
+    needs: [ Initialization, Deploy ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Finalize the workflow
+        id: PostProcess
+        uses: microsoft/AL-Go-Actions/WorkflowPostProcess@v2.2
+        with:
+          eventId: "DO0097"
+          telemetryScopeJson: ${{ needs.Initialization.outputs.telemetryScopeJson }}
