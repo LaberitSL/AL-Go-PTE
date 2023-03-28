@@ -11,8 +11,8 @@ on:
         description: Type of the target of deployment (LocalContainer or OnPrem)
         required: true
         default: OnPrem
-      runnerName:
-        description: Name of the runner that will run the workflow
+      runnerLabel:
+        description: Label of the runner that will run the workflow
         required: true
       environmentName:
         description: Environment (container or service) name to receive the new version
@@ -59,7 +59,7 @@ jobs:
 
   Deploy:
     needs: [ Initialization ]
-    runs-on: ${{ github.event.inputs.runnerName }}
+    runs-on: ${{ github.event.inputs.runnerLabel }}
     name: Deploy to ${{ github.event.inputs.environmentName }}
     steps:
       - name: Checkout
